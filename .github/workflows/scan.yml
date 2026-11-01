@@ -1,0 +1,51 @@
+name: CoinSwitch Read-only Scanner
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '3,18,33,48 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coinswitch-scanner
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Extract scanner ZIP
+        run: unzip -q CoinSwitch_Signal_Lab_v1.zip
+
+      - name: Install requirements
+        run: python -m pip install -r coinswitch_signal_lab/requirements.txt
+
+      - name: Scan without placing orders
+        working-directory: coinswitch_signal_lab
+        env:
+          COINSWITCH_API_KEY: ${{ secrets.COINSWITCH_API_KEY }}
+          COINSWITCH_SECRET_KEY: ${{ secrets.COINSWITCH_SECRET_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          USDT_INR: ${{ vars.USDT_INR }}
+          BALANCE_INR: ${{ vars.BALANCE_INR }}
+          OBSERVED_TAKER_FEE: ${{ vars.OBSERVED_TAKER_FEE }}
+        run: python -m scanner.main
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signal-report-${{ github.run_id }}
+          path: |
+            coinswitch_signal_lab/report.html
+            coinswitch_signal_lab/last_scan.json
+          if-no-files-found: ignore
+          retention-days: 14
