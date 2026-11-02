@@ -1,0 +1,50 @@
+name: Telegram Delivery Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram test message
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          import urllib.error
+
+          token = os.getenv('BOT_TOKEN', '').strip()
+          chat_id = os.getenv('CHAT_ID', '').strip()
+          if not token or not chat_id:
+              raise SystemExit('Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID secret.')
+
+          payload = json.dumps({
+              'chat_id': chat_id,
+              'text': 'CoinSwitch Signal Lab test: Telegram delivery is connected. This is NOT a trade signal.'
+          }).encode('utf-8')
+          req = urllib.request.Request(
+              'https://api.telegram.org/bot' + token + '/sendMessage',
+              data=payload,
+              headers={'Content-Type': 'application/json'},
+              method='POST'
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as response:
+                  result = json.load(response)
+          except urllib.error.HTTPError as exc:
+              raise SystemExit('Telegram HTTP ' + str(exc.code) + ': check your bot token and chat ID.') from None
+          except Exception:
+              raise SystemExit('Unable to contact Telegram. Check network and bot settings.') from None
+
+          if not result.get('ok'):
+              raise SystemExit('Telegram did not confirm sending the test message.')
+          print('Telegram test sent successfully. Check your bot chat.')
+          PY
